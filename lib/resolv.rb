@@ -84,8 +84,8 @@ class Resolv
   ##
   # Creates a new Resolv using +resolvers+.
 
-  def initialize(resolvers=[Hosts.new, DNS.new])
-    @resolvers = resolvers
+  def initialize(resolvers=nil, use_ipv6: nil)
+    @resolvers = resolvers || [Hosts.new, DNS.new(DNS::Config.default_config_hash.merge(use_ipv6: use_ipv6))]
   end
 
   ##
@@ -408,6 +408,11 @@ class Resolv
     end
 
     def use_ipv6? # :nodoc:
+      use_ipv6 = @config.use_ipv6?
+      unless use_ipv6.nil?
+        return use_ipv6
+      end
+
       begin
         list = Socket.ip_address_list
       rescue NotImplementedError
@@ -1006,6 +1011,7 @@ class Resolv
         @mutex.synchronize {
           unless @initialized
             @nameserver_port = []
+            @use_ipv6 = nil
             @search = nil
             @ndots = 1
             case @config_info
@@ -1029,6 +1035,9 @@ class Resolv
             end
             if config_hash.include? :nameserver_port
               @nameserver_port = config_hash[:nameserver_port].map {|ns, port| [ns, (port || Port)] }
+            end
+            if config_hash.include? :use_ipv6
+              @use_ipv6 = config_hash[:use_ipv6]
             end
             @search = config_hash[:search] if config_hash.include? :search
             @ndots = config_hash[:ndots] if config_hash.include? :ndots
@@ -1083,6 +1092,10 @@ class Resolv
 
       def nameserver_port
         @nameserver_port
+      end
+
+      def use_ipv6?
+        @use_ipv6
       end
 
       def generate_candidates(name)
