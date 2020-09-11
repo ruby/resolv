@@ -1,8 +1,8 @@
 # Resolv
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/resolv`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
+Resolv is a thread-aware DNS resolver library written in Ruby.  Resolv can
+handle multiple DNS requests concurrently without blocking the entire Ruby
+interpreter.
 
 ## Installation
 
@@ -22,7 +22,18 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+
+```ruby
+p Resolv.getaddress "www.ruby-lang.org"
+p Resolv.getname "210.251.121.214"
+
+Resolv::DNS.open do |dns|
+  ress = dns.getresources "www.ruby-lang.org", Resolv::DNS::Resource::IN::A
+  p ress.map(&:address)
+  ress = dns.getresources "ruby-lang.org", Resolv::DNS::Resource::IN::MX
+  p ress.map { |r| [r.exchange.to_s, r.preference] }
+end
+```
 
 ## Development
 
@@ -32,5 +43,5 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/hsbt/resolv.
+Bug reports and pull requests are welcome on GitHub at https://github.com/ruby/resolv.
 
