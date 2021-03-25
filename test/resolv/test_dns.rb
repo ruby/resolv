@@ -43,7 +43,7 @@ class TestResolvDNS < Test::Unit::TestCase
     begin
       OpenSSL
     rescue LoadError
-      skip 'autoload problem. see [ruby-dev:45021][Bug #5786]'
+      omit 'autoload problem. see [ruby-dev:45021][Bug #5786]'
     end if defined?(OpenSSL)
 
     with_udp('127.0.0.1', 0) {|u|
@@ -130,13 +130,13 @@ class TestResolvDNS < Test::Unit::TestCase
 
   def test_query_ipv4_duplicate_responses
     if /linux/ =~ RUBY_PLATFORM
-      skip 'Skipping duplicate response test on Linux, see [ruby-core:103013][Bug #17748]'
+      omit 'Skipping duplicate response test on Linux, see [ruby-core:103013][Bug #17748]'
     end
 
     begin
       OpenSSL
     rescue LoadError
-      skip 'autoload problem. see [ruby-dev:45021][Bug #5786]'
+      omit 'autoload problem. see [ruby-dev:45021][Bug #5786]'
     end if defined?(OpenSSL)
 
     with_udp('127.0.0.1', 0) {|u|
@@ -288,7 +288,7 @@ class TestResolvDNS < Test::Unit::TestCase
     rescue Timeout::Error
       if RUBY_PLATFORM.match?(/mingw/)
         # cannot repo locally
-        skip 'Timeout Error on MinGW CI'
+        omit 'Timeout Error on MinGW CI'
       else
         raise Timeout::Error
       end
