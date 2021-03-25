@@ -705,8 +705,17 @@ class Resolv
         return msg, s.data
       end
 
-      def sender_for(addr, msg)
-        @senders.delete([addr,msg.id])
+      if /linux/ =~ RUBY_PLATFORM
+        # Workaround for Ruby Bug 17748, where on Linux requests
+        # for invalid domains wait for the socket to timeout if
+        # the address is deleted from @senders.
+        def sender_for(addr, msg)
+          @senders[[addr,msg.id]]
+        end
+      else
+        def sender_for(addr, msg)
+          @senders.delete([addr,msg.id])
+        end
       end
 
       def close

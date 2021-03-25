@@ -129,6 +129,10 @@ class TestResolvDNS < Test::Unit::TestCase
   end
 
   def test_query_ipv4_duplicate_responses
+    if /linux/ =~ RUBY_PLATFORM
+      skip 'Skipping duplicate response test on Linux, see [ruby-core:103013][Bug #17748]'
+    end
+
     begin
       OpenSSL
     rescue LoadError
