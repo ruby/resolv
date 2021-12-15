@@ -82,8 +82,8 @@ class Resolv
   ##
   # Creates a new Resolv using +resolvers+.
 
-  def initialize(resolvers=[Hosts.new, DNS.new])
-    @resolvers = resolvers
+  def initialize(resolvers=nil)
+    @resolvers = resolvers || default_resolvers
   end
 
   ##
@@ -150,6 +150,23 @@ class Resolv
       }
       return if yielded
     }
+  end
+
+  private def default_resolvers # :nodoc:
+    resolvers = [Hosts.new, DNS.new]
+
+    # macOS supports multiple DNS resolvers via additional configs
+    # (e.g. local domain resolvers, VPNs, etc.)
+    # ref: `man 5 resolver` on macOS/darwin
+    if /darwin/ =~ RUBY_PLATFORM && Dir.exist?('/etc/resolver')
+      Dir.each_child('/etc/resolver') do |filename|
+        resolver = DNS::Config.parse_resolv_conf("/etc/resolver/#{filename}")
+        resolver[:search] = [filename] unless resolver[:search]
+        resolvers << DNS.new(resolver)
+      end
+    end
+
+    resolvers
   end
 
   ##
@@ -958,6 +975,7 @@ class Resolv
         nameserver = []
         search = nil
         ndots = 1
+        port = Port
         File.open(filename, 'rb') {|f|
           f.each {|line|
             line.sub!(/[#;].*/, '')
@@ -979,10 +997,20 @@ class Resolv
                   ndots = $1.to_i
                 end
               }
+            when 'port'
+              # Only valid for macOS
+              next unless /darwin/ =~ RUBY_PLATFORM
+              next if args.empty?
+              port = args[0].to_i
             end
           }
         }
-        return { :nameserver => nameserver, :search => search, :ndots => ndots }
+
+        return {
+          :nameserver_port => nameserver.to_enum(:each_with_index).map { |ns, i| [ns, port] },
+          :search => search,
+          :ndots => ndots
+        }
       end
 
       def Config.default_config_hash(filename="/etc/resolv.conf")
@@ -2907,4 +2935,3 @@ class Resolv
   AddressRegex = /(?:#{IPv4::Regex})|(?:#{IPv6::Regex})/
 
 end
-

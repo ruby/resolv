@@ -342,6 +342,23 @@ class TestResolvDNS < Test::Unit::TestCase
     end
   end
 
+  def test_macos_resolver_port
+    return unless /darwin/ =~ RUBY_PLATFORM
+
+    Tempfile.create('resolv_test_macos_resolver_port_') do |tmpfile|
+      tmpfile.puts "domain localdomain"
+      tmpfile.puts "nameserver 127.0.0.1"
+      tmpfile.puts "port 55353"
+      tmpfile.close
+      config_hash = Resolv::DNS::Config.parse_resolv_conf(tmpfile.path)
+      assert_equal({
+        :nameserver_port => [['127.0.0.1', 55353]],
+        :search => ['localdomain'],
+        :ndots => 1,
+      }, config_hash)
+    end
+  end
+
   def test_dots_diffences
     name1 = Resolv::DNS::Name.create("example.org")
     name2 = Resolv::DNS::Name.create("ex.ampl.eo.rg")
