@@ -116,8 +116,10 @@ class Resolv
     yielded = false
     @resolvers.each {|r|
       r.each_address(name) {|address|
-        yield address.to_s
-        yielded = true
+        if block_given?
+          yield address.to_s
+          yielded = true
+        end
       }
       return if yielded
     }
@@ -547,6 +549,8 @@ class Resolv
               yield(reply, reply_name)
             end
             return
+          when RCode::ServFail
+            next
           when RCode::NXDomain
             raise Config::NXDomain.new(reply_name.to_s)
           else
