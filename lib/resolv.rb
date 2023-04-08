@@ -1616,6 +1616,14 @@ class Resolv
           strings
         end
 
+        def get_list
+          [].tap do |values|
+            while @index < @limit
+              values << yield
+            end
+          end
+        end
+
         def get_name
           return Name.new(self.get_labels)
         end
