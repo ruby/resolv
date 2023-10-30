@@ -1139,7 +1139,7 @@ class Resolv
             end
           }
         rescue ResolvError
-          raise if @raise_timeout_errors && timeout_error
+          raise ResolvTimeout if @raise_timeout_errors && timeout_error
         end
       end
 
