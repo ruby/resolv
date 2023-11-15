@@ -457,4 +457,118 @@ class TestResolvDNS < Test::Unit::TestCase
     end
     assert_raise(Resolv::ResolvError) { dns.each_name('example.com') }
   end
+
+  def test_query_ipv4_try_next_dns_if_first_answers_with_servfail
+    begin
+      OpenSSL
+    rescue LoadError
+      omit 'autoload problem. see [ruby-dev:45021][Bug #5786]'
+    end if defined?(OpenSSL)
+
+    with_udp('127.0.0.1', 0) {|first|
+      with_udp('127.0.0.1', 0) {|second|
+        _, server_one_port, _, server_one_address = first.addr
+        _, server_two_port, _, server_two_address = second.addr
+        begin
+          client_thread = Thread.new {
+            Resolv::DNS.open(:nameserver_port => [[server_one_address, server_one_port], [server_two_address, server_two_port]]).getaddress("example.org")
+          }
+          server_one_thread = Thread.new {
+            msg, (_, client_port, _, client_address) = Timeout.timeout(5) {first.recvfrom(4096)}
+            id, flags, qdcount, ancount, nscount, arcount = msg.unpack("nnnnnn")
+
+            qr =     (flags & 0x8000) >> 15
+            opcode = (flags & 0x7800) >> 11
+            aa =     (flags & 0x0400) >> 10
+            tc =     (flags & 0x0200) >> 9
+            rd =     (flags & 0x0100) >> 8
+            ra =     (flags & 0x0080) >> 7
+            z =      (flags & 0x0070) >> 4
+            rcode =   flags & 0x000f
+            _rest = msg[12..-1]
+            questions = msg.bytes[12..-1]
+
+            id = id
+            qr = 1
+            opcode = opcode
+            aa = 0
+            tc = 0
+            rd = rd
+            ra = 1
+            z = 0
+            rcode = 2 # ServFail
+            qdcount = 1
+            ancount = 0
+            nscount = 0
+            arcount = 0
+            word2 = (qr << 15) |
+                    (opcode << 11) |
+                    (aa << 10) |
+                    (tc << 9) |
+                    (rd << 8) |
+                    (ra << 7) |
+                    (z << 4) |
+                    rcode
+            msg = [id, word2, qdcount, ancount, nscount, arcount].pack("nnnnnn")
+            msg << questions.pack('c*')
+  
+            first.send(msg, 0, client_address, client_port)
+          }
+          server_two_thread = Thread.new {
+            msg, (_, client_port, _, client_address) = Timeout.timeout(5) {second.recvfrom(4096)}
+            id, flags, qdcount, ancount, nscount, arcount = msg.unpack("nnnnnn")
+  
+            qr =     (flags & 0x8000) >> 15
+            opcode = (flags & 0x7800) >> 11
+            aa =     (flags & 0x0400) >> 10
+            tc =     (flags & 0x0200) >> 9
+            rd =     (flags & 0x0100) >> 8
+            ra =     (flags & 0x0080) >> 7
+            z =      (flags & 0x0070) >> 4
+            rcode =   flags & 0x000f
+            _rest = msg[12..-1]
+
+            questions = msg.bytes[12..-1]
+
+            id = id
+            qr = 1
+            opcode = opcode
+            aa = 0
+            tc = 0
+            rd = rd
+            ra = 1
+            z = 0
+            rcode = 0 # NoError
+            qdcount = 1
+            ancount = 1
+            nscount = 0
+            arcount = 0
+            word2 = (qr << 15) |
+                    (opcode << 11) |
+                    (aa << 10) |
+                    (tc << 9) |
+                    (rd << 8) |
+                    (ra << 7) |
+                    (z << 4) |
+                    rcode
+            msg = [id, word2, qdcount, ancount, nscount, arcount].pack("nnnnnn")
+            msg << questions.pack('c*')
+            type = 1
+            klass = 1
+            ttl = 3600
+            rdlength = 4
+            rdata = [52,0,2,1].pack("CCCC")
+            rr = [0xc00c, type, klass, ttl, rdlength, rdata].pack("nnnNna*")
+            msg << rr
+
+            second.send(msg, 0, client_address, client_port)
+          }
+          result, _, _ = assert_join_threads([client_thread, server_one_thread, server_two_thread])
+
+          assert_instance_of(Resolv::IPv4, result)
+          assert_equal("52.0.2.1", result.to_s)
+        end
+      }
+    }
+  end
 end
