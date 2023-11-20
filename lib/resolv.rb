@@ -312,7 +312,6 @@ class Resolv
     # String:: Path to a file using /etc/resolv.conf's format.
     # Hash:: Must contain :nameserver, :search and :ndots keys.
     # :nameserver_port can be used to specify port number of nameserver address.
-    # :raise_timeout_errors can be used to raise timeout errors
     # as exceptions instead of treating the same as an NXDOMAIN response.
     #
     # The value of :nameserver should be an address string or
@@ -1034,7 +1033,6 @@ class Resolv
             end
             @search = config_hash[:search] if config_hash.include? :search
             @ndots = config_hash[:ndots] if config_hash.include? :ndots
-            @raise_timeout_errors = config_hash[:raise_timeout_errors]
 
             if @nameserver_port.empty?
               @nameserver_port << ['0.0.0.0', Port]
@@ -1119,6 +1117,7 @@ class Resolv
       end
 
       def resolv(name)
+        debugger
         candidates = generate_candidates(name)
         timeouts = @timeouts || generate_timeouts
         timeout_error = false
@@ -1139,7 +1138,7 @@ class Resolv
             end
           }
         rescue ResolvError
-          raise ResolvTimeout if @raise_timeout_errors && timeout_error
+          raise ResolvTimeout if timeout_error
         end
       end
 

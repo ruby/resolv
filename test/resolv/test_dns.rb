@@ -475,10 +475,6 @@ class TestResolvDNS < Test::Unit::TestCase
       :ndots => 1
     }
     r = Resolv.new([Resolv::DNS.new(config)])
-    assert_equal([], r.getaddresses('www.google.com'))
-
-    config[:raise_timeout_errors] = true
-    r = Resolv.new([Resolv::DNS.new(config)])
     assert_raise(Resolv::ResolvError) { r.getaddresses('www.google.com') }
   end
 end
