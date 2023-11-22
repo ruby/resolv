@@ -203,7 +203,7 @@ class TestResolvSvcbHttps < Test::Unit::TestCase
   end
 
 
-  ## For [draft-ietf-add-svcb-dns-08]
+  ## For [RFC9461]
 
   def test_dohpath
     wire = wrap_rdata 64, 1, "\x00\x01\x03one\x03one\x03one\x03one\x00" +

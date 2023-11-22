@@ -2026,7 +2026,7 @@ class Resolv
       end
 
       ##
-      # "dohpath" SvcParam -- DNS over HTTPS path template [draft-ietf-add-svcb-dns-08]
+      # "dohpath" SvcParam -- DNS over HTTPS path template [RFC9461]
 
       class DoHPath < SvcParam
         KeyName = :dohpath
