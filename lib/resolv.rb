@@ -1685,7 +1685,7 @@ class Resolv
     end
 
     ##
-    # SvcParams for service binding RRs. [draft-ietf-dnsop-svcb-https-12]
+    # SvcParams for service binding RRs. [RFC9460]
 
     class SvcParams
       include Enumerable
@@ -1786,7 +1786,7 @@ class Resolv
 
 
     ##
-    # Base class for SvcParam. [draft-ietf-dnsop-svcb-https-12]
+    # Base class for SvcParam. [RFC9460]
 
     class SvcParam
 
@@ -2752,7 +2752,7 @@ class Resolv
         end
 
         ##
-        # SVCB resource record [draft-ietf-dnsop-svcb-https-12]
+        # SVCB resource record [RFC9460]
 
         class SVCB < ServiceBinding
           TypeValue = 64
@@ -2761,7 +2761,7 @@ class Resolv
         end
 
         ##
-        # HTTPS resource record [draft-ietf-dnsop-svcb-https-12]
+        # HTTPS resource record [RFC9460]
 
         class HTTPS < ServiceBinding
           TypeValue = 65
