@@ -83,8 +83,7 @@ class TestResolvSvcbHttps < Test::Unit::TestCase
     assert_equal expected, msg.encode
   end
 
-
-  ## Test vectors from [draft-ietf-dnsop-svcb-https-12]
+  ## Test vectors from [RFC9460]
 
   def test_alias_mode
     wire = wrap_rdata 65, 1, "\x00\x00\x03foo\x07example\x03com\x00"
@@ -201,7 +200,6 @@ class TestResolvSvcbHttps < Test::Unit::TestCase
 
     assert_equal wire, msg.encode
   end
-
 
   ## For [RFC9461]
 
