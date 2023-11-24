@@ -288,6 +288,16 @@ class Resolv
     UDPSize = 512
 
     ##
+    # Default source address for IPv4 queries
+
+    BindHost = '0.0.0.0'
+
+    ##
+    # Default source address for IPv6 queries
+
+    BindHost6 = '::'
+
+    ##
     # Creates a new DNS resolver.  See Resolv::DNS.new for argument details.
     #
     # Yields the created DNS resolver to the block, if given, otherwise
@@ -312,6 +322,8 @@ class Resolv
     # String:: Path to a file using /etc/resolv.conf's format.
     # Hash:: Must contain :nameserver, :search and :ndots keys.
     # :nameserver_port can be used to specify port number of nameserver address.
+    # :bindhost may specify a query IPv4 source address.
+    # :bindhost6 may specify a query IPv6 source address.
     #
     # The value of :nameserver should be an address string or
     # an array of address strings.
@@ -322,11 +334,21 @@ class Resolv
     # pair of nameserver address and port number.
     # - :nameserver_port => [['8.8.8.8', 53], ['8.8.4.4', 53]]
     #
-    # Example:
+    # If included, :bindhost specifies an IPv4 address from which IPv4
+    # queries will originate.  If :bindhost6 is included, IPv6 queries
+    # will originate from that address.
+    #
+    # Examples:
     #
     #   Resolv::DNS.new(:nameserver => ['210.251.121.21'],
     #                   :search => ['ruby-lang.org'],
-    #                   :ndots => 1)
+    #                   :ndots => 1,
+    #                   :bindhost => '192.0.2.50')
+    #
+    #   Resolv::DNS.new(:nameserver => ['001:4860:4860::8888'],
+    #                   :search => ['ruby-lang.org'],
+    #                   :ndots => 1,
+    #                   :bindhost6 => '2001:DB8::53')
 
     def initialize(config_info=nil)
       @mutex = Thread::Mutex.new
@@ -561,14 +583,14 @@ class Resolv
     def make_udp_requester # :nodoc:
       nameserver_port = @config.nameserver_port
       if nameserver_port.length == 1
-        Requester::ConnectedUDP.new(*nameserver_port[0])
+        Requester::ConnectedUDP.new(@config.bindhost, @config.bindhost6, *nameserver_port[0])
       else
-        Requester::UnconnectedUDP.new(*nameserver_port)
+        Requester::UnconnectedUDP.new(@config.bindhost, @config.bindhost6, *nameserver_port)
       end
     end
 
     def make_tcp_requester(host, port) # :nodoc:
-      return Requester::TCP.new(host, port)
+      return Requester::TCP.new(@config.bindhost, @config.bindhost6, host, port)
     end
 
     def extract_resources(msg, name, typeclass) # :nodoc:
@@ -619,10 +641,10 @@ class Resolv
     RequestID = {} # :nodoc:
     RequestIDMutex = Thread::Mutex.new # :nodoc:
 
-    def self.allocate_request_id(host, port) # :nodoc:
+    def self.allocate_request_id(host, port, bind_host) # :nodoc:
       id = nil
       RequestIDMutex.synchronize {
-        h = (RequestID[[host, port]] ||= {})
+        h = (RequestID[[host, port, bind_host]] ||= {})
         begin
           id = random(0x0000..0xffff)
         end while h[id]
@@ -643,7 +665,7 @@ class Resolv
       }
     end
 
-    def self.bind_random_port(udpsock, bind_host="0.0.0.0") # :nodoc:
+    def self.bind_random_port(udpsock, bind_host) # :nodoc:
       begin
         port = random(1024..65535)
         udpsock.bind(bind_host, port)
@@ -726,8 +748,10 @@ class Resolv
       end
 
       class UnconnectedUDP < Requester # :nodoc:
-        def initialize(*nameserver_port)
+        def initialize(bindhost, bindhost6, *nameserver_port)
           super()
+          @bindhost = bindhost
+          @bindhost6 = bindhost6
           @nameserver_port = nameserver_port
           @initialized = false
           @mutex = Thread::Mutex.new
@@ -741,10 +765,10 @@ class Resolv
             @socks = []
             @nameserver_port.each {|host, port|
               if host.index(':')
-                bind_host = "::"
+                bind_host = @bindhost6
                 af = Socket::AF_INET6
               else
-                bind_host = "0.0.0.0"
+                bind_host = @bindhost
                 af = Socket::AF_INET
               end
               next if @socks_hash[bind_host]
@@ -769,12 +793,13 @@ class Resolv
         end
 
         def sender(msg, data, host, port=Port)
+          bind_host = host.index(':') ? @bindhost6 : @bindhost
           host = Addrinfo.ip(host).ip_address
           lazy_initialize
-          sock = @socks_hash[host.index(':') ? "::" : "0.0.0.0"]
+          sock = @socks_hash[bind_host]
           return nil if !sock
           service = [host, port]
-          id = DNS.allocate_request_id(host, port)
+          id = DNS.allocate_request_id(host, port, bind_host)
           request = msg.encode
           request[0,2] = [id].pack('n')
           return @senders[[service, id]] =
@@ -809,10 +834,12 @@ class Resolv
       end
 
       class ConnectedUDP < Requester # :nodoc:
-        def initialize(host, port=Port)
+        def initialize(bindhost, bindhost6, host, port=Port)
           super()
           @host = host
           @port = port
+          @bindhost = bindhost
+          @bindhost6 = bindhost6
           @mutex = Thread::Mutex.new
           @initialized = false
         end
@@ -825,7 +852,7 @@ class Resolv
             sock = UDPSocket.new(is_ipv6 ? Socket::AF_INET6 : Socket::AF_INET)
             @socks = [sock]
             sock.do_not_reverse_lookup = true
-            DNS.bind_random_port(sock, is_ipv6 ? "::" : "0.0.0.0")
+            DNS.bind_random_port(sock, is_ipv6 ? @bindhost6 : @bindhost)
             sock.connect(@host, @port)
           }
           self
@@ -837,12 +864,12 @@ class Resolv
           return reply, nil
         end
 
-        def sender(msg, data, host=@host, port=@port)
+        def sender(msg, data, host=@host, port=@port, bind_host=@bind_host)
           lazy_initialize
-          unless host == @host && port == @port
-            raise RequestError.new("host/port don't match: #{host}:#{port}")
+          unless host == @host && port == @port && @bind_host == bind_host
+            raise RequestError.new("bind_host host:port don't match: #{bind_host} #{host}:#{port}")
           end
-          id = DNS.allocate_request_id(@host, @port)
+          id = DNS.allocate_request_id(@host, @port, @bind_host)
           request = msg.encode
           request[0,2] = [id].pack('n')
           return @senders[[nil,id]] = Sender.new(request, data, @socks[0])
@@ -871,11 +898,12 @@ class Resolv
 
       class MDNSOneShot < UnconnectedUDP # :nodoc:
         def sender(msg, data, host, port=Port)
+          bind_host = host.index(':') ? @bindhost6 : @bindhost
           lazy_initialize
-          id = DNS.allocate_request_id(host, port)
+          id = DNS.allocate_request_id(host, port, bind_host)
           request = msg.encode
           request[0,2] = [id].pack('n')
-          sock = @socks_hash[host.index(':') ? "::" : "0.0.0.0"]
+          sock = @socks_hash[bind_host]
           return @senders[id] =
             UnconnectedUDP::Sender.new(request, data, sock, host, port)
         end
@@ -887,11 +915,13 @@ class Resolv
       end
 
       class TCP < Requester # :nodoc:
-        def initialize(host, port=Port)
+        def initialize(bindhost, bindhost6, host, port=Port)
           super()
           @host = host
           @port = port
-          sock = TCPSocket.new(@host, @port)
+          @bindhost = bindhost
+          @bindhost6 = bindhost6
+          sock = TCPSocket.new(@host, @port, @host.index(':') ? @bindhost6 : @bindhost)
           @socks = [sock]
           @senders = {}
         end
@@ -906,7 +936,7 @@ class Resolv
           unless host == @host && port == @port
             raise RequestError.new("host/port don't match: #{host}:#{port}")
           end
-          id = DNS.allocate_request_id(@host, @port)
+          id = DNS.allocate_request_id(@host, @port, @host.index(':') ? @bindhost6 : @bindhost)
           request = msg.encode
           request[0,2] = [request.length, id].pack('nn')
           return @senders[[nil,id]] = Sender.new(request, data, @socks[0])
@@ -1008,6 +1038,8 @@ class Resolv
             @nameserver_port = []
             @search = nil
             @ndots = 1
+            @bindhost = nil
+            @bindhost6 = nil
             case @config_info
             when nil
               config_hash = Config.default_config_hash
@@ -1032,6 +1064,8 @@ class Resolv
             end
             @search = config_hash[:search] if config_hash.include? :search
             @ndots = config_hash[:ndots] if config_hash.include? :ndots
+            @bindhost = config_hash[:bindhost] if config_hash.include? :bindhost
+            @bindhost6 = config_hash[:bindhost6] if config_hash.include? :bindhost6
 
             if @nameserver_port.empty?
               @nameserver_port << ['0.0.0.0', Port]
@@ -1055,6 +1089,14 @@ class Resolv
                   !(Integer === ns_port[1])
                }
               raise ArgumentError.new("invalid nameserver config: #{@nameserver_port.inspect}")
+            end
+
+            if !@bindhost.nil? && (!@bindhost.is_a?(String) || !IPv4::Regex.match(@bindhost))
+              raise ArgumentError.new("invalid bindhost config: #{@bindhost.inspect}")
+            end
+
+            if !@bindhost6.nil? && (!@bindhost6.is_a?(String) || !IPv6::Regex.match(@bindhost6))
+              raise ArgumentError.new("invalid bindhost6 config: #{@bindhost6.inspect}")
             end
 
             if !@search.kind_of?(Array) ||
@@ -1083,6 +1125,14 @@ class Resolv
 
       def nameserver_port
         @nameserver_port
+      end
+
+      def bindhost
+        @bindhost.nil? ? BindHost : @bindhost
+      end
+
+      def bindhost6
+        @bindhost6.nil? ? BindHost6 : @bindhost6
       end
 
       def generate_candidates(name)
