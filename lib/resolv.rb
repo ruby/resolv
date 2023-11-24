@@ -2341,6 +2341,8 @@ class Resolv
             return self.new(priority, weight, port, target)
           end
         end
+
+        Ractor.make_shareable(ClassHash) if defined?(Ractor)
       end
     end
   end
