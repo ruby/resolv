@@ -116,10 +116,8 @@ class Resolv
     yielded = false
     @resolvers.each {|r|
       r.each_address(name) {|address|
-        if block_given?
-          yield address.to_s
-          yielded = true
-        end
+        yield address.to_s
+        yielded = true
       }
       return if yielded
     }
