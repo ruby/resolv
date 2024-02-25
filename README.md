@@ -45,3 +45,10 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/ruby/resolv.
 
+## License
+
+The gem is available as open source under the terms of the
+[Ruby License] or the [2-Clause BSD License].
+
+[Ruby License]: https://www.ruby-lang.org/en/about/license.txt
+[2-Clause BSD License]: https://opensource.org/licenses/BSD-2-Clause
