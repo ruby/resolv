@@ -547,6 +547,8 @@ class Resolv
               yield(reply, reply_name)
             end
             return
+          when RCode::ServFail
+            next
           when RCode::NXDomain
             raise Config::NXDomain.new(reply_name.to_s)
           else
