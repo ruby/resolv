@@ -709,8 +709,8 @@ class TestResolvDNS < Test::Unit::TestCase
     num_records = 50
 
     with_udp_and_tcp('127.0.0.1', 0) do |u1, t1|
-      # XXX: _u2 UDP socket is not used, but using #with_udp_and_tcp to enable Windows EACCES workaround
-      with_udp_and_tcp('127.0.0.1', 0) do |_u2,t2|
+      with_udp_and_tcp('127.0.0.1', 0) do |u2,t2|
+        u2.close # XXX: u2 UDP socket is not used, but using #with_udp_and_tcp to enable Windows EACCES workaround
         _, server1_port, _, server1_address = u1.addr
         _, server2_port, _, server2_address = t2.addr
 
