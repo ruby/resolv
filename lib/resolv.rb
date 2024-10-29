@@ -2107,7 +2107,14 @@ class Resolv
 
       attr_reader :ttl
 
-      ClassHash = {} # :nodoc:
+      ClassHash = Module.new do
+        module_function
+
+        def []=(type_class_value, klass)
+          type_value, class_value = type_class_value
+          Resource.const_set(:"Type#{type_value}_Class#{class_value}", klass)
+        end
+      end
 
       def encode_rdata(msg) # :nodoc:
         raise NotImplementedError.new
@@ -2145,8 +2152,10 @@ class Resolv
       end
 
       def self.get_class(type_value, class_value) # :nodoc:
-        return ClassHash[[type_value, class_value]] ||
-               Generic.create(type_value, class_value)
+        cached = const_defined?(:"Type#{type_value}_Class#{class_value}") &&
+                 const_get(:"Type#{type_value}_Class#{class_value}")
+
+        return cached || Generic.create(type_value, class_value)
       end
 
       ##
