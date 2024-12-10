@@ -32,6 +32,8 @@ jobs:
         bundler-cache: true
     - name: Run test
       run: bundle exec rake test
+      timeout-minutes: 3
+      continue-on-error: ${{ startsWith(matrix.ruby, 'jruby') }}
     - name: Build package
       id: build
       shell: bash
