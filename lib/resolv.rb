@@ -3344,10 +3344,9 @@ class Resolv
         when Coord
           return arg
         when String
-          unless Regex =~ arg && $1.to_f < 180
+          unless (m = Regex.match(arg)) && m[1].to_i < 180
             raise ArgumentError.new("not a properly formed Coord string: " + arg)
           end
-          m = $~
           hemi = (m[4][/[NE]/]) || (m[4][/[SW]/]) ? 1 : -1
           coordinates = [ ((m[1].to_i*(36e5)) + (m[2].to_i*(6e4)) +
                            (m[3].to_f*(1e3))) * hemi+(2**31) ].pack("N")
