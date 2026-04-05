@@ -3347,11 +3347,11 @@ class Resolv
           unless (m = Regex.match(arg)) && m[1].to_i < 180
             raise ArgumentError.new("not a properly formed Coord string: " + arg)
           end
-          hemi = (m[4][/[NE]/]) || (m[4][/[SW]/]) ? 1 : -1
-          coordinates = [ ((m[1].to_i*(36e5)) + (m[2].to_i*(6e4)) +
-                           (m[3].to_f*(1e3))) * hemi+(2**31) ].pack("N")
-          orientation = m[4][/[NS]/] ? 'lat' : 'lon'
-          return Coord.new(coordinates,orientation)
+
+          dir = m[4]
+          hemi = dir[/[NE]/] ? 1 : -1
+          arc = (m[1].to_i * 3_600_000) + (m[2].to_i * 60_000) + (m[3].to_f * 1_000).to_i
+          return Coord.new([arc * hemi + (2**31)].pack("N"), dir[/[NS]/] ? "lat" : "lon")
         else
           raise ArgumentError.new("cannot interpret as Coord: #{arg.inspect}")
         end
