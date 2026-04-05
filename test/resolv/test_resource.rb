@@ -55,6 +55,7 @@ class TestResolvResourceLOC < Test::Unit::TestCase
 
     assert_equal(orientation, coord.orientation)
     assert_equal([coordinate].pack("N"), coord.coordinates)
+    assert_equal(coord, Resolv::LOC::Coord.create(coord.to_s))
   end
 end
 

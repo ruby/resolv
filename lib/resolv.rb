@@ -3387,22 +3387,17 @@ class Resolv
       attr_reader :orientation
 
       def to_s # :nodoc:
-          c = @coordinates.unpack("N").join.to_i
-          val      = (c - (2**31)).abs
-          fracsecs = (val % 1e3).to_i.to_s
-          val      = val / 1e3
-          secs     = (val % 60).to_i.to_s
-          val      = val / 60
-          mins     = (val % 60).to_i.to_s
-          degs     = (val / 60).to_i.to_s
-          posi = (c >= 2**31)
-          case posi
-          when true
-            hemi = @orientation[/^lat$/] ? "N" : "E"
+          c, = @coordinates.unpack("N")
+          val = (c -= Bias).abs
+          val, fracsecs = val.divmod(1000)
+          val, secs     = val.divmod(60)
+          degs, mins    = val.divmod(60)
+          hemi = if c.negative?
+            @orientation == "lon" ? "W" : "S"
           else
-            hemi = @orientation[/^lon$/] ? "W" : "S"
+            @orientation == "lat" ? "N" : "E"
           end
-          return degs << " " << mins << " " << secs << "." << fracsecs << " " << hemi
+          format("%d %02d %02d.%03d %s", degs, mins, secs, fracsecs, hemi)
       end
 
       def inspect # :nodoc:
