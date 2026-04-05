@@ -3331,7 +3331,10 @@ class Resolv
 
       # Regular expression LOC Coord must match.
 
-      Regex = /^(\d+)\s(\d+)\s(\d+\.\d+)\s([NESW])$/
+      Regex = /\A0*(\d{1,3})\s([0-5]?\d)\s([0-5]?\d(?:\.\d+)?)\s([NESW])\z/
+
+      # Bias for the equator/prime meridian, in thousandths of a second of arc.
+      Bias = 1 << 31
 
       ##
       # Creates a new LOC::Coord from +arg+ which may be:
@@ -3344,14 +3347,19 @@ class Resolv
         when Coord
           return arg
         when String
-          unless (m = Regex.match(arg)) && m[1].to_i < 180
+          unless m = Regex.match(arg)
             raise ArgumentError.new("not a properly formed Coord string: " + arg)
           end
 
-          dir = m[4]
-          hemi = dir[/[NE]/] ? 1 : -1
           arc = (m[1].to_i * 3_600_000) + (m[2].to_i * 60_000) + (m[3].to_f * 1_000).to_i
-          return Coord.new([arc * hemi + (2**31)].pack("N"), dir[/[NS]/] ? "lat" : "lon")
+          dir = m[4]
+          lat = dir[/[NS]/]
+          unless arc <= (lat ? 324_000_000 : 648_000_000) # (lat ? 90 : 180) * 3_600_000
+            raise ArgumentError.new("out of range as Coord: #{arg}")
+          end
+
+          hemi = dir[/[NE]/] ? 1 : -1
+          return new([arc * hemi + Bias].pack("N"), lat ? "lat" : "lon")
         else
           raise ArgumentError.new("cannot interpret as Coord: #{arg.inspect}")
         end
@@ -3359,10 +3367,10 @@ class Resolv
 
       # Internal use; use self.create.
       def initialize(coordinates,orientation)
-        unless coordinates.kind_of?(String)
+        unless coordinates.kind_of?(String) and coordinates.bytesize == 4
           raise ArgumentError.new("Coord must be a 32bit unsigned integer in hex format: #{coordinates.inspect}")
         end
-        unless orientation.kind_of?(String) && orientation[/^lon$|^lat$/]
+        unless orientation == "lon" || orientation == "lat"
           raise ArgumentError.new('Coord expects orientation to be a String argument of "lat" or "lon"')
         end
         @coordinates = coordinates

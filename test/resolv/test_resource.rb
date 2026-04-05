@@ -42,6 +42,10 @@ class TestResolvResourceLOC < Test::Unit::TestCase
     assert_coord('32 07 19.000 S', 'lat', 0x791b7d28)
     assert_coord('116 02 25.000 E', 'lon', 0x98e64868)
     assert_coord('116 02 25.000 W', 'lon', 0x6719b798)
+    assert_coord('180 00 00.000 E', 'lon', 0xa69fb200)
+    assert_coord('180 00 00.000 W', 'lon', 0x59604e00)
+    assert_raise(ArgumentError) {Resolv::LOC::Coord.create('90 0 0.001 N')}
+    assert_raise(ArgumentError) {Resolv::LOC::Coord.create('90 0 0.001 S')}
     assert_raise(ArgumentError) {Resolv::LOC::Coord.create('180 0 0.001 E')}
     assert_raise(ArgumentError) {Resolv::LOC::Coord.create('180 0 0.001 W')}
   end
