@@ -3281,12 +3281,10 @@ class Resolv
         when Size
           return arg
         when String
-          scalar = ''
-          if Regex =~ arg
-            scalar = [(($1.to_f*(1e2)).to_i.to_s[0].to_i*(2**4)+(($1.to_f*(1e2)).to_i.to_s.length-1))].pack("C")
-          else
+          unless Regex =~ arg
             raise ArgumentError.new("not a properly formed Size string: " + arg)
           end
+          scalar = [(($1.to_f*(1e2)).to_i.to_s[0].to_i*(2**4)+(($1.to_f*(1e2)).to_i.to_s.length-1))].pack("C")
           return Size.new(scalar)
         else
           raise ArgumentError.new("cannot interpret as Size: #{arg.inspect}")
@@ -3346,16 +3344,14 @@ class Resolv
         when Coord
           return arg
         when String
-          coordinates = ''
-          if Regex =~ arg && $1.to_f < 180
-            m = $~
-            hemi = (m[4][/[NE]/]) || (m[4][/[SW]/]) ? 1 : -1
-            coordinates = [ ((m[1].to_i*(36e5)) + (m[2].to_i*(6e4)) +
-                             (m[3].to_f*(1e3))) * hemi+(2**31) ].pack("N")
-            orientation = m[4][/[NS]/] ? 'lat' : 'lon'
-          else
+          unless Regex =~ arg && $1.to_f < 180
             raise ArgumentError.new("not a properly formed Coord string: " + arg)
           end
+          m = $~
+          hemi = (m[4][/[NE]/]) || (m[4][/[SW]/]) ? 1 : -1
+          coordinates = [ ((m[1].to_i*(36e5)) + (m[2].to_i*(6e4)) +
+                           (m[3].to_f*(1e3))) * hemi+(2**31) ].pack("N")
+          orientation = m[4][/[NS]/] ? 'lat' : 'lon'
           return Coord.new(coordinates,orientation)
         else
           raise ArgumentError.new("cannot interpret as Coord: #{arg.inspect}")
@@ -3440,12 +3436,10 @@ class Resolv
         when Alt
           return arg
         when String
-          altitude = ''
-          if Regex =~ arg
-            altitude = [($1.to_f*(1e2))+(1e7)].pack("N")
-          else
+          unless Regex =~ arg
             raise ArgumentError.new("not a properly formed Alt string: " + arg)
           end
+          altitude = [($1.to_f*(1e2))+(1e7)].pack("N")
           return Alt.new(altitude)
         else
           raise ArgumentError.new("cannot interpret as Alt: #{arg.inspect}")
