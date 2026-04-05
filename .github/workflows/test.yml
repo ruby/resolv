@@ -6,7 +6,7 @@ jobs:
   ruby-versions:
     uses: ruby/actions/.github/workflows/ruby_versions.yml@master
     with:
-      engine: cruby
+      engine: cruby-jruby
       min_version: 2.5
 
   build:
@@ -15,10 +15,16 @@ jobs:
     strategy:
       matrix:
         ruby: ${{ fromJson(needs.ruby-versions.outputs.versions) }}
-        os: [ ubuntu-latest, macos-latest ]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        include:
+          - ruby: mswin
+            os: windows-latest
+        exclude:
+          - ruby: 2.5
+            os: macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -26,3 +32,21 @@ jobs:
         bundler-cache: true
     - name: Run test
       run: bundle exec rake test
+      timeout-minutes: 3
+      continue-on-error: ${{ startsWith(matrix.ruby, 'jruby') }}
+    - name: Build package
+      id: build
+      shell: bash
+      run: |
+        if ruby -e 'exit RUBY_VERSION>="3.0."'; then
+          bundle exec rake build
+          set pkg/*.gem
+          echo pkg=$1 >> $GITHUB_OUTPUT
+        fi
+    - name: Install gem
+      run: |
+        gem install ${{ steps.build.outputs.pkg }}
+        ruby -rresolv -e 'puts $LOADED_FEATURES.grep(/resolv/)'
+        ruby -rresolv -e 'puts Resolv::VERSION'
+      if: ${{ steps.build.outputs.pkg }}
+      continue-on-error: ${{ startsWith(matrix.ruby, 'jruby') }}

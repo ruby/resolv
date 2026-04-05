@@ -14,14 +14,17 @@ gem 'resolv'
 
 And then execute:
 
-    $ bundle install
+```bash
+bundle install
+```
 
 Or install it yourself as:
 
-    $ gem install resolv
+```bash
+gem install resolv
+```
 
 ## Usage
-
 
 ```ruby
 p Resolv.getaddress "www.ruby-lang.org"
@@ -44,4 +47,3 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/ruby/resolv.
-
