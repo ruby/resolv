@@ -45,6 +45,7 @@ class TestResolvResourceLOC < Test::Unit::TestCase
   private def assert_size(input, base, power)
     size = Resolv::LOC::Size.create(input)
     assert_equal([(base << 4) + power], size.scalar.unpack("C"))
+    assert_equal(size, Resolv::LOC::Size.create(size.to_s))
   end
 
   def test_coord

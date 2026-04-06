@@ -3305,8 +3305,8 @@ class Resolv
       attr_reader :scalar
 
       def to_s # :nodoc:
-        s = @scalar.unpack("H2").join.to_s
-        return ((s[0].to_i)*(10**(s[1].to_i-2))).to_s << "m"
+        s, = @scalar.unpack("C")
+        return "#{(s >> 4) * (10.0 ** ((s & 0xf) - 2))}m"
       end
 
       def inspect # :nodoc:
