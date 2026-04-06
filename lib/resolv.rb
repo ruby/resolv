@@ -3268,7 +3268,7 @@ class Resolv
 
       # Regular expression LOC size must match.
 
-      Regex = /^(\d+\.*\d*)[m]$/
+      Regex = /\A0*(\d{1,8}(?:\.\d+)?)m\z/
 
       ##
       # Creates a new LOC::Size from +arg+ which may be:
@@ -3284,8 +3284,11 @@ class Resolv
           unless Regex =~ arg
             raise ArgumentError.new("not a properly formed Size string: " + arg)
           end
-          scalar = [(($1.to_f*(1e2)).to_i.to_s[0].to_i*(2**4)+(($1.to_f*(1e2)).to_i.to_s.length-1))].pack("C")
-          return Size.new(scalar)
+          unless (0.0...1e8) === (scalar = $1.to_f)
+            raise ArgumentError.new("out of range as Size: #{arg}")
+          end
+          str = (scalar * 100).to_i.to_s
+          return new([(str[0].to_i << 4) + (str.bytesize-1)].pack("C"))
         else
           raise ArgumentError.new("cannot interpret as Size: #{arg.inspect}")
         end

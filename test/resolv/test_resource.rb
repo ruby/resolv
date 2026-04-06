@@ -30,6 +30,23 @@ class TestResolvResource < Test::Unit::TestCase
 end
 
 class TestResolvResourceLOC < Test::Unit::TestCase
+  def test_size_create
+    assert_size("0.0m", 0, 0)
+    assert_size("0.01m", 1, 0)
+    assert_size("0.09m", 9, 0)
+    assert_size("0.11m", 1, 1)
+    assert_size("1.0m", 1, 2)
+    assert_size("1234.56m", 1, 5)
+    assert_size("12345678.90m", 1, 9)
+    assert_size("98765432.10m", 9, 9)
+    assert_raise(ArgumentError) {Resolv::LOC::Size.create("100000000.00m")}
+  end
+
+  private def assert_size(input, base, power)
+    size = Resolv::LOC::Size.create(input)
+    assert_equal([(base << 4) + power], size.scalar.unpack("C"))
+  end
+
   def test_coord
     assert_coord('1 2 1.1 N', 'lat', 0x8038c78c)
     assert_coord('42 21 43.952 N', 'lat', 0x89170690)
