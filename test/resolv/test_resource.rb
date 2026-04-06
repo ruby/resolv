@@ -75,6 +75,27 @@ class TestResolvResourceLOC < Test::Unit::TestCase
     assert_equal([coordinate].pack("N"), coord.coordinates)
     assert_equal(coord, Resolv::LOC::Coord.create(coord.to_s))
   end
+
+  def test_alt
+    assert_alt("0.0m", 0)
+    assert_alt("+0.0m", 0)
+    assert_alt("-0.0m", 0)
+    assert_alt("+0.01m", 1)
+    assert_alt("1.0m", 100)
+    assert_alt("+1.0m", 100)
+    assert_alt("100000.0m", +10000000)
+    assert_alt("+100000.0m", +10000000)
+    assert_alt("-100000.0m", -10000000)
+    assert_alt("+42849672.95m", 0xffff_ffff-100_000_00)
+    assert_raise(ArgumentError) {Resolv::LOC::Alt.create("-100000.01m")}
+    assert_raise(ArgumentError) {Resolv::LOC::Alt.create("+42849672.96m")}
+  end
+
+  private def assert_alt(input, altitude)
+    alt = Resolv::LOC::Alt.create(input)
+
+    assert_equal([altitude + 1e7].pack("N"), alt.altitude)
+  end
 end
 
 class TestResolvResourceCAA < Test::Unit::TestCase

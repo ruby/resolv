@@ -3428,7 +3428,10 @@ class Resolv
 
       # Regular expression LOC Alt must match.
 
-      Regex = /^([+-]*\d+\.*\d*)[m]$/
+      Regex = /\A([+-]?0*\d{1,8}(?:\.\d+)?)m\z/
+
+      # Bias to a base of 100,000m below the WGS 84 reference spheroid.
+      Bias = 100_000_00
 
       ##
       # Creates a new LOC::Alt from +arg+ which may be:
@@ -3444,8 +3447,11 @@ class Resolv
           unless Regex =~ arg
             raise ArgumentError.new("not a properly formed Alt string: " + arg)
           end
-          altitude = [($1.to_f*(1e2))+(1e7)].pack("N")
-          return Alt.new(altitude)
+          altitude = ($1.to_f * 100).to_i + Bias
+          unless (0...0x1_0000_0000) === altitude
+            raise ArgumentError.new("out of raise as Alt: #{arg}")
+          end
+          return new([altitude].pack("N"))
         else
           raise ArgumentError.new("cannot interpret as Alt: #{arg.inspect}")
         end
