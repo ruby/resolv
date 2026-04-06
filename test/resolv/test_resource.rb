@@ -95,6 +95,7 @@ class TestResolvResourceLOC < Test::Unit::TestCase
     alt = Resolv::LOC::Alt.create(input)
 
     assert_equal([altitude + 1e7].pack("N"), alt.altitude)
+    assert_equal(alt, Resolv::LOC::Alt.create(alt.to_s))
   end
 end
 

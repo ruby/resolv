@@ -3468,8 +3468,8 @@ class Resolv
       attr_reader :altitude
 
       def to_s # :nodoc:
-        a = @altitude.unpack("N").join.to_i
-        return ((a.to_f/1e2)-1e5).to_s + "m"
+        a, = @altitude.unpack("N")
+        return "#{(a - Bias).fdiv(100)}m"
       end
 
       def inspect # :nodoc:
