@@ -37,7 +37,7 @@ end
 
 class Resolv
 
-  VERSION = "0.3.1"
+  VERSION = "0.3.2"
 
   ##
   # Looks up the first IP address for +name+.
