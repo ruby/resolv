@@ -1446,10 +1446,22 @@ class Resolv
                @rd == other.rd &&
                @ra == other.ra &&
                @rcode == other.rcode &&
-               @question == other.question &&
+               question_equal?(other.question) &&
                @answer == other.answer &&
                @authority == other.authority &&
                @additional == other.additional
+      end
+
+      # A question holds the resource class itself, and decoding creates a fresh
+      # class for each unknown type, so the classes cannot be compared by
+      # identity alone.
+      private def question_equal?(other_question) # :nodoc:
+        return false unless @question.length == other_question.length
+        @question.zip(other_question) {|(name, typeclass), (o_name, o_typeclass)|
+          return false unless name == o_name &&
+                              Resource::Generic.type_class_equal?(typeclass, o_typeclass)
+        }
+        return true
       end
 
       def add_question(name, typeclass)
@@ -1957,8 +1969,9 @@ class Resolv
           key_name = :"key#{key_number}"
           c.const_set(:KeyName, key_name)
           c.const_set(:KeyNumber, key_number)
-          self.const_set(:"Key#{key_number}", c)
-          ClassHash[key_name] = ClassHash[key_number] = c
+          # Not registered in a constant or in ClassHash. ClassHash creates a
+          # class for every unknown SvcParamKey, so registering them
+          # permanently would let a malicious response exhaust memory.
           return c
         end
       end
@@ -2265,12 +2278,28 @@ class Resolv
           return self.new(msg.get_bytes)
         end
 
+        # create makes a fresh class for each decoded resource, so the type and
+        # class values have to be compared instead of the class itself.
+        def self.type_class_equal?(klass, other) # :nodoc:
+          return true if klass.equal?(other)
+          Generic > klass && Generic > other &&
+            klass::TypeValue == other::TypeValue &&
+            klass::ClassValue == other::ClassValue
+        end
+
+        def ==(other) # :nodoc:
+          return other.is_a?(Generic) &&
+                 Generic.type_class_equal?(self.class, other.class) &&
+                 @data == other.data
+        end
+
         def self.create(type_value, class_value) # :nodoc:
           c = Class.new(Generic)
           c.const_set(:TypeValue, type_value)
           c.const_set(:ClassValue, class_value)
-          Generic.const_set("Type#{type_value}_Class#{class_value}", c)
-          ClassHash[[type_value, class_value]] = c
+          # Not registered in a constant or in ClassHash. get_class creates a
+          # class for every unknown (type, class) pair, so registering them
+          # permanently would let a malicious response exhaust memory.
           return c
         end
       end
