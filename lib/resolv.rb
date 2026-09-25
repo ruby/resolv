@@ -1244,7 +1244,12 @@ class Resolv
           [name]
         else
           abs = Name.new(name.to_a)
-          search = @search.map {|domain| Name.new(name.to_a + domain)}
+          search = @search.map {|domain| name.to_a + domain}
+          # A search domain can push a candidate past 255 octets even though
+          # the name itself fits. No reply can carry such a name, so skip it
+          # and leave the other candidates to be tried. [RFC 1035 3.1]
+          search.reject! {|labels| labels.inject(1) {|size, label| size + 1 + label.string.bytesize} > 255}
+          search.map! {|labels| Name.new(labels)}
           if @ndots <= name.length - 1
             [abs, *search].uniq
           else
