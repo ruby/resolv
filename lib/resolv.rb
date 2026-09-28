@@ -626,24 +626,26 @@ class Resolv
       n0 = Name.create(name)
       msg.each_resource {|n, ttl, data|
         if n0 == n
-          case data
-          when typeclass
+          if resource_of_type?(data, typeclass)
             yield data
             yielded = true
-          when Resource::CNAME
+          elsif Resource::CNAME === data
             n0 = data.name
           end
         end
       }
       return if yielded
       msg.each_resource {|n, ttl, data|
-        if n0 == n
-          case data
-          when typeclass
-            yield data
-          end
+        if n0 == n && resource_of_type?(data, typeclass)
+          yield data
         end
       }
+    end
+
+    # Decoding makes a fresh class for each resource of an unregistered type,
+    # so a class from Generic.create never matches such a resource by identity.
+    private def resource_of_type?(data, typeclass) # :nodoc:
+      typeclass === data || Resource::Generic.type_class_equal?(data.class, typeclass)
     end
 
     def self.random(arg) # :nodoc:
