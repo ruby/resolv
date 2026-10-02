@@ -499,6 +499,7 @@ class Resolv
     # * Resolv::DNS::Resource::IN::SOA
     # * Resolv::DNS::Resource::IN::SRV
     # * Resolv::DNS::Resource::IN::SVCB
+    # * Resolv::DNS::Resource::IN::TLSA
     # * Resolv::DNS::Resource::IN::TXT
     # * Resolv::DNS::Resource::IN::WKS
     #
@@ -2637,6 +2638,58 @@ class Resolv
       end
 
       ##
+      # TLSA resource record defined in RFC 6698
+      #
+      # These records are used to associate a TLS server certificate or public
+      # key with the domain name where the record is found.
+
+      class TLSA < Resource
+
+        TypeValue = 52 # :nodoc:
+
+        def initialize(certificate_usage, selector, matching_type, certificate_association_data)
+          @certificate_usage = certificate_usage.to_int
+          @selector = selector.to_int
+          @matching_type = matching_type.to_int
+          @certificate_association_data = certificate_association_data
+        end
+
+        ##
+        # The Certificate Usage for this TLSA record.
+
+        attr_reader :certificate_usage
+
+        ##
+        # The Selector for this TLSA record.
+
+        attr_reader :selector
+
+        ##
+        # The Matching Type for this TLSA record.
+
+        attr_reader :matching_type
+
+        ##
+        # The Certificate Association Data for this TLSA record.
+
+        attr_reader :certificate_association_data
+
+        def encode_rdata(msg) # :nodoc:
+          msg.put_bytes(@certificate_usage)
+          msg.put_bytes(@selector)
+          msg.put_bytes(@matching_type)
+          msg.put_pack('H*', @certificate_association_data)
+        end
+
+        def self.decode_rdata(msg) # :nodoc:
+          certificate_usage, selector, matching_type = msg.get_unpack('ccc')
+          certificate_association_data = msg.get_bytes.unpack1('H*')
+
+          return self.new(certificate_usage, selector, matching_type, certificate_association_data)
+        end
+      end
+
+      ##
       # Unstructured text resource.
 
       class TXT < Resource
@@ -2829,7 +2882,7 @@ class Resolv
       end
 
       ClassInsensitiveTypes = [ # :nodoc:
-        NS, CNAME, SOA, PTR, HINFO, MINFO, MX, TXT, LOC, ANY, CAA
+        NS, CNAME, SOA, PTR, HINFO, MINFO, MX, TXT, LOC, ANY, CAA, TLSA
       ]
 
       ##
