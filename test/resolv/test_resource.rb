@@ -227,3 +227,29 @@ class TestResolvResourceCAA < Test::Unit::TestCase
     end
   end
 end
+
+class TestResolvResourceTLSA < Test::Unit::TestCase
+  def test_tlsa_roundtrip
+    # gathered in the wild, trimed from transation id and additional RRs, reformatted for clarity
+    raw_msg = "\x00\x00\x00\x00\x00\x01\x00\x02\x00\x00\x00\x00\x04_443\x04_tcp\x07freebsd\x03org\x00\x00\x34\x00\x01\xc0\x0c\x00\x34\x00\x01\x00\x00\x0d\x22\x00\x23\x03\x01\x01\x24\x04\x9a\xa6\xe0\x30\x51\xa0\xdf\x3a\xef\xbb\xfa\xd4\x68\x6e\x62\x07\xdd\x4e\x60\x18\x58\xee\x40\xc3\x1c\x8b\x0b\xd6\xbc\x03\xc0\x0c\x00\x34\x00\x01\x00\x00\x0d\x22\x00\x23\x03\x01\x01\x31\xef\x2a\x4d\x6e\x28\x5c\xc2\x9a\x63\x6c\x51\x71\xf7\xda\x0a\xc6\x9c\xc4\x4c\xeb\xaf\x5c\xd0\x39\xda\x8c\xc8\x11\x87\x48\x2a".b
+
+    m = Resolv::DNS::Message.new(0)
+    m.add_question('_443._tcp.freebsd.org.', Resolv::DNS::Resource::IN::TLSA)
+    m.add_answer('_443._tcp.freebsd.org.', 3362, Resolv::DNS::Resource::IN::TLSA.new(3, 1, 1, '24049aa6e03051a0df3aefbbfad4686e6207dd4e601858ee40c31c8b0bd6bc03'))
+    m.add_answer('_443._tcp.freebsd.org.', 3362, Resolv::DNS::Resource::IN::TLSA.new(3, 1, 1, '31ef2a4d6e285cc29a636c5171f7da0ac69cc44cebaf5cd039da8cc81187482a'))
+    assert_equal raw_msg, m.encode
+
+    m = Resolv::DNS::Message.decode(raw_msg)
+    assert_equal 2, m.answer.size
+    _, _, tlsa0 = m.answer[0]
+    assert_equal 3, tlsa0.certificate_usage
+    assert_equal 1, tlsa0.selector
+    assert_equal 1, tlsa0.matching_type
+    assert_equal '24049aa6e03051a0df3aefbbfad4686e6207dd4e601858ee40c31c8b0bd6bc03', tlsa0.certificate_association_data
+    _, _, tlsa1 = m.answer[1]
+    assert_equal 3, tlsa1.certificate_usage
+    assert_equal 1, tlsa1.selector
+    assert_equal 1, tlsa1.matching_type
+    assert_equal '31ef2a4d6e285cc29a636c5171f7da0ac69cc44cebaf5cd039da8cc81187482a', tlsa1.certificate_association_data
+  end
+end
