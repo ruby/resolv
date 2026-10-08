@@ -549,11 +549,14 @@ class Resolv
           msg.rd = 1
           msg.add_question(candidate, typeclass)
 
+          # Connecting to the nameserver comes out of the same interval as the
+          # request itself.
+          timelimit = Process.clock_gettime(Process::CLOCK_MONOTONIC) + tout
           requester = requesters.fetch([nameserver, port]) do
             if !truncated[candidate] && udp_requester
               udp_requester
             else
-              requesters[[nameserver, port]] = make_tcp_requester(nameserver, port)
+              requesters[[nameserver, port]] = make_tcp_requester(nameserver, port, tout)
             end
           end
 
@@ -563,7 +566,8 @@ class Resolv
             senders[[candidate, requester, nameserver, port]] = sender
           end
           begin
-            reply, reply_name = requester.request(sender, tout)
+            remaining = timelimit - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            reply, reply_name = requester.request(sender, remaining)
           rescue ResolvTimeout
             # Giving up part way through a frame loses stream sync, and a peer
             # seen going away leaves the socket dead.  Either way the requester
@@ -606,12 +610,12 @@ class Resolv
       end
     end
 
-    def make_tcp_requester(host, port) # :nodoc:
-      return Requester::TCP.new(host, port)
-    rescue Errno::ECONNREFUSED
-      # Treat a refused TCP connection attempt to a nameserver like a timeout,
-      # as Resolv::DNS::Config#resolv considers ResolvTimeout exceptions as a
-      # hint to try the next nameserver:
+    def make_tcp_requester(host, port, timeout = nil) # :nodoc:
+      return Requester::TCP.new(host, port, timeout)
+    rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT
+      # Treat a refused or timed out TCP connection attempt to a nameserver
+      # like a timeout, as Resolv::DNS::Config#resolv considers ResolvTimeout
+      # exceptions as a hint to try the next nameserver:
       raise ResolvTimeout
     end
 
@@ -982,11 +986,12 @@ class Resolv
       end
 
       class TCP < Requester # :nodoc:
-        def initialize(host, port=Port)
+        def initialize(host, port=Port, timeout=nil)
           super()
           @host = host
           @port = port
-          sock = TCPSocket.new(@host, @port)
+          # TCPSocket.new takes connect_timeout: only since Ruby 3.0.
+          sock = Addrinfo.tcp(@host, @port).connect(timeout: timeout)
           @socks = [sock]
           @senders = {}
           @reusable = true
