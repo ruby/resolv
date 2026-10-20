@@ -154,6 +154,23 @@ class TestResolvDNS < Test::Unit::TestCase
     assert_equal ['example.com', 'example.com.local'], candidates.map(&:to_s)
   end
 
+  def test_conf_search_skips_candidate_over_255_octets
+    # 246 octets encoded, so a search domain may add at most 9 more.
+    name = (["a" * 63] * 3 + ["a" * 52]).join(".")
+    conf = Resolv::DNS::Config.new(nameserver: '127.0.0.1', search: ['b' * 9, 'c' * 8], ndots: 1)
+    conf.lazy_initialize
+    candidates = conf.generate_candidates(name)
+    assert_equal [name, "#{name}.#{'c' * 8}"], candidates.map(&:to_s)
+    msg = Resolv::DNS::Message.new
+    msg.add_question(candidates[1], Resolv::DNS::Resource::IN::A)
+    assert_equal candidates[1], Resolv::DNS::Message.decode(msg.encode).question[0][0]
+
+    conf = Resolv::DNS::Config.new(nameserver: '127.0.0.1', search: ['b' * 9], ndots: 5)
+    conf.lazy_initialize
+    candidates = conf.generate_candidates(name)
+    assert_equal [name], candidates.map(&:to_s)
+  end
+
   def test_query_ipv4_address
     begin
       OpenSSL
