@@ -3347,7 +3347,31 @@ class Resolv
     attr_reader :address
 
     def to_s # :nodoc:
-      sprintf("%x:%x:%x:%x:%x:%x:%x:%x", *@address.unpack("nnnnnnnn")).sub(/(^|:)0(:0)+(:|$)/, '::')
+      words = @address.unpack("nnnnnnnn")
+
+      # RFC 5952 Section 4.2.3: compress the longest run of two or more
+      # zero fields, choosing the first one when runs are equally long.
+      best_start = best_len = nil
+      i = 0
+      while i < 8
+        if words[i] == 0
+          j = i
+          j += 1 while j < 8 && words[j] == 0
+          if j - i >= 2 && (best_len.nil? || j - i > best_len)
+            best_start, best_len = i, j - i
+          end
+          i = j
+        else
+          i += 1
+        end
+      end
+
+      hex = words.map {|word| sprintf("%x", word) }
+      return hex.join(":") unless best_start
+
+      head = hex[0, best_start].join(":")
+      tail = hex[(best_start + best_len)..-1].join(":")
+      "#{head}::#{tail}"
     end
 
     def inspect # :nodoc:
