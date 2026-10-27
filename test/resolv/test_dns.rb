@@ -1615,4 +1615,62 @@ class TestResolvDNS < Test::Unit::TestCase
       end
     end
   end
+
+  # The TCP connect after a truncated reply is bounded by the timeout, and a
+  # connect that times out moves on to the next nameserver like a refused one.
+  # TCPSocket.new is stubbed for the first nameserver, as a TCP port that drops
+  # SYNs cannot be set up portably.
+  def test_truncated_tcp_fallback_connect_timeout_falls_back_to_the_next_nameserver
+    omit "TCPSocket.new has no connect_timeout" if RUBY_VERSION < "3.0"
+    with_udp_and_tcp('127.0.0.1', 0) do |u1, _t1|
+      with_udp_and_tcp('127.0.0.1', 0) do |u2, t2|
+        u2.close # only the TCP side of the second nameserver is used
+        _, server1_port, _, server1_address = u1.addr
+        _, server2_port, _, server2_address = t2.addr
+        tout = EnvUtil.apply_timeout_scale(5)
+        connect_timeouts = Thread::Queue.new
+
+        timeout_error = defined?(IO::TimeoutError) ? IO::TimeoutError : Errno::ETIMEDOUT
+        TCPSocket.define_singleton_method(:new) do |host, port, *args, **opts, &blk|
+          if port == server1_port
+            connect_timeouts.push(opts[:connect_timeout])
+            raise timeout_error, "user specified timeout"
+          end
+          super(host, port, *args, **opts, &blk)
+        end
+
+        begin
+          client_thread = Thread.new do
+            Resolv::DNS.open(nameserver_port: [[server1_address, server1_port],
+                                               [server2_address, server2_port]],
+                             raise_timeout_errors: true) do |dns|
+              dns.timeouts = tout
+              Timeout.timeout(EnvUtil.apply_timeout_scale(20)) do
+                dns.getresources('foo.example.org', Resolv::DNS::Resource::IN::A)
+              end
+            end
+          end
+
+          udp_server1_thread = Thread.new { answer_truncated(u1) }
+
+          tcp_server2_thread = Thread.new do
+            ct = accept_within_timeout(t2)
+            begin
+              query = read_framed_query(ct)
+              ct.write(framed(reply_for_query(query, '192.0.2.1')))
+            ensure
+              ct.close
+            end
+          end
+
+          result, = assert_join_threads([client_thread, udp_server1_thread,
+                                         tcp_server2_thread])
+        ensure
+          TCPSocket.singleton_class.send(:remove_method, :new)
+        end
+        assert_equal(['192.0.2.1'], result.map {|rr| rr.address.to_s })
+        assert_equal(tout, connect_timeouts.pop(true))
+      end
+    end
+  end
 end
