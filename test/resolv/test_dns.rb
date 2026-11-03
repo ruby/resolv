@@ -1615,4 +1615,96 @@ class TestResolvDNS < Test::Unit::TestCase
       end
     end
   end
+
+  # Fills the accept queue of +t+ so that a further connection attempt to it
+  # is left waiting, as Linux does by dropping the SYN.  Omits the test where
+  # the kernel completes or refuses such an attempt instead.
+  def with_accept_queue_full(t)
+    _, port, _, address = t.addr
+    sockaddr = Socket.sockaddr_in(port, address)
+    queued = []
+    begin
+      8.times do
+        s = Socket.new(:INET, :STREAM)
+        queued << s
+        begin
+          next unless s.connect_nonblock(sockaddr, exception: false) == :wait_writable
+        rescue SystemCallError
+          next
+        end
+        return yield unless s.wait_writable(EnvUtil.apply_timeout_scale(0.5))
+      end
+      omit('cannot leave a connection attempt waiting')
+    ensure
+      queued.each(&:close)
+    end
+  end
+
+  def test_truncated_tcp_fallback_gives_up_connecting_after_the_timeout
+    with_udp_and_tcp('127.0.0.1', 0) do |u, t|
+      _, server_port, _, server_address = u.addr
+      with_accept_queue_full(t) do
+        client_thread = Thread.new do
+          Resolv::DNS.open(nameserver_port: [[server_address, server_port]],
+                           raise_timeout_errors: true) do |dns|
+            dns.timeouts = EnvUtil.apply_timeout_scale(0.5)
+            assert_raise(Resolv::ResolvError) do
+              Timeout.timeout(EnvUtil.apply_timeout_scale(10)) do
+                dns.getresources('foo.example.org', Resolv::DNS::Resource::IN::A)
+              end
+            end
+          end
+        end
+
+        udp_server_thread = Thread.new { answer_truncated(u) }
+
+        assert_join_threads([client_thread, udp_server_thread])
+      end
+    end
+  end
+
+  def test_truncated_tcp_fallback_moves_on_when_connecting_times_out
+    with_udp_and_tcp('127.0.0.1', 0) do |u1, t1|
+      with_udp_and_tcp('127.0.0.1', 0) do |u2, t2|
+        u2.close # only the TCP side of the second nameserver is used
+        _, server1_port, _, server1_address = u1.addr
+        _, server2_port, _, server2_address = t2.addr
+        with_accept_queue_full(t1) do
+          done = Thread::Queue.new
+
+          client_thread = Thread.new do
+            begin
+              Resolv::DNS.open(nameserver_port: [[server1_address, server1_port],
+                                                 [server2_address, server2_port]],
+                               raise_timeout_errors: true) do |dns|
+                dns.timeouts = [EnvUtil.apply_timeout_scale(0.5),
+                                EnvUtil.apply_timeout_scale(5)]
+                Timeout.timeout(EnvUtil.apply_timeout_scale(10)) do
+                  dns.getresources('foo.example.org', Resolv::DNS::Resource::IN::A)
+                end
+              end
+            ensure
+              done.push(true)
+            end
+          end
+
+          udp_server1_thread = Thread.new { answer_truncated(u1) }
+
+          tcp_server2_thread = Thread.new do
+            ct = accept_within_timeout(t2)
+            begin
+              ct.write(framed(reply_for_query(read_framed_query(ct), '192.0.2.1')))
+              done.pop
+            ensure
+              ct.close
+            end
+          end
+
+          result, = assert_join_threads([client_thread, udp_server1_thread,
+                                         tcp_server2_thread])
+          assert_equal(['192.0.2.1'], result.map {|rr| rr.address.to_s })
+        end
+      end
+    end
+  end
 end
