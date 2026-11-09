@@ -64,6 +64,24 @@ class TestResolvResource < Test::Unit::TestCase
       Resolv::DNS::Message.decode(generic_question(40001))
   end
 
+  # Looking up a type that has no named class means passing a class from
+  # Generic.create, which is never the class a decoded answer carries.
+  def test_getresources_with_generic_type
+    generic = Resolv::DNS::Resource::Generic
+    message = Resolv::DNS::Message.new
+    message.add_answer("example.com.", 60, generic.create(40000, 60000).new("\x01\x02\x03"))
+    reply = Resolv::DNS::Message.decode(message.encode)
+    dns = Resolv::DNS.new
+    dns.define_singleton_method(:fetch_resource) do |_name, _typeclass, &block|
+      block.call(reply, Resolv::DNS::Name.create("example.com."))
+    end
+
+    resources = dns.getresources("example.com", generic.create(40000, 60000))
+    assert_equal ["\x01\x02\x03".b], resources.map(&:data)
+    assert_empty dns.getresources("example.com", generic.create(40001, 60000))
+    assert_empty dns.getresources("example.com", Resolv::DNS::Resource::IN::A)
+  end
+
   private def header(qdcount, ancount)
     "\x00\x00\x00\x00".b + [qdcount, ancount, 0, 0].pack('nnnn')
   end
