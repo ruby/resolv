@@ -553,7 +553,7 @@ class Resolv
             if !truncated[candidate] && udp_requester
               udp_requester
             else
-              requesters[[nameserver, port]] = make_tcp_requester(nameserver, port)
+              requesters[[nameserver, port]] = make_tcp_requester(nameserver, port, tout)
             end
           end
 
@@ -606,12 +606,15 @@ class Resolv
       end
     end
 
-    def make_tcp_requester(host, port) # :nodoc:
-      return Requester::TCP.new(host, port)
-    rescue Errno::ECONNREFUSED
-      # Treat a refused TCP connection attempt to a nameserver like a timeout,
-      # as Resolv::DNS::Config#resolv considers ResolvTimeout exceptions as a
-      # hint to try the next nameserver:
+    TCPConnectTimeoutErrors = [Errno::ETIMEDOUT] # :nodoc:
+    TCPConnectTimeoutErrors << IO::TimeoutError if defined?(IO::TimeoutError)
+
+    def make_tcp_requester(host, port, connect_timeout = nil) # :nodoc:
+      return Requester::TCP.new(host, port, connect_timeout: connect_timeout)
+    rescue Errno::ECONNREFUSED, *TCPConnectTimeoutErrors
+      # Treat a refused or timed out TCP connection attempt to a nameserver
+      # like a timeout, as Resolv::DNS::Config#resolv considers ResolvTimeout
+      # exceptions as a hint to try the next nameserver:
       raise ResolvTimeout
     end
 
@@ -995,11 +998,15 @@ class Resolv
       end
 
       class TCP < Requester # :nodoc:
-        def initialize(host, port=Port)
+        def initialize(host, port=Port, connect_timeout: nil)
           super()
           @host = host
           @port = port
-          sock = TCPSocket.new(@host, @port)
+          sock = if connect_timeout && RUBY_VERSION >= "3.0"
+            TCPSocket.new(@host, @port, connect_timeout: connect_timeout)
+          else
+            TCPSocket.new(@host, @port)
+          end
           @socks = [sock]
           @senders = {}
           @reusable = true
