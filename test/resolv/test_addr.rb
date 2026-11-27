@@ -34,6 +34,40 @@ class TestResolvAddr < Test::Unit::TestCase
     assert_match(Resolv::IPv6::Regex, "fe80::1%ruby_3.0.0-1", bug17524)
   end
 
+  def test_ipv6_compressed_group_count
+    # "::" stands for one or more zero groups, so at most 7 other groups
+    # (or 5 before an embedded IPv4 address) may appear around it.
+    %w[
+      1:2:3:4:5:6:7:8::
+      ::1:2:3:4:5:6:7:8
+      1:2:3:4::5:6:7:8
+      1:2:3:4:5:6:7:8:9::
+      1:2:3:4:5:6::1.2.3.4
+      ::1:2:3:4:5:6:1.2.3.4
+      1:2:3:4:5:6:7::1.2.3.4
+      1:2:3:4:5:6::7:1.2.3.4
+    ].each do |addr|
+      assert_not_match(Resolv::IPv6::Regex, addr)
+      assert_not_match(Resolv::AddressRegex, addr)
+      assert_raise_with_message(ArgumentError, /not numeric IPv6 address/, addr) do
+        Resolv::IPv6.create(addr)
+      end
+    end
+
+    {
+      "1:2:3:4:5:6:7::" => "1:2:3:4:5:6:7:0",
+      "::2:3:4:5:6:7:8" => "0:2:3:4:5:6:7:8",
+      "1:2:3::5:6:7:8" => "1:2:3:0:5:6:7:8",
+      "::" => "::",
+      "1:2:3:4:5::1.2.3.4" => "1:2:3:4:5:0:102:304",
+      "::2:3:4:5:6:1.2.3.4" => "0:2:3:4:5:6:102:304",
+      "::1.2.3.4" => "::102:304",
+    }.each do |addr, expected|
+      assert_match(Resolv::IPv6::Regex, addr)
+      assert_equal(expected, Resolv::IPv6.create(addr).to_s, addr)
+    end
+  end
+
   def test_valid_socket_ip_address_list
     Socket.ip_address_list.each do |addr|
       ip = addr.ip_address

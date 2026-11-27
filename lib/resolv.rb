@@ -3225,8 +3225,12 @@ class Resolv
 
     ##
     # Compressed IPv6 address format a::b
+    #
+    # "::" stands for one or more groups of zeros, so at most 7 other
+    # groups may appear around it.
 
     Regex_CompressedHex = /\A
+      (?!:*(?:[0-9A-Fa-f]{1,4}:+){7}[0-9A-Fa-f])
       ((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?) ::
       ((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)
       \z/x
@@ -3241,8 +3245,12 @@ class Resolv
 
     ##
     # Compressed IPv4 mapped IPv6 address format a::b:w.x.y.z
+    #
+    # The IPv4 address takes two groups and "::" at least one, so at most 5
+    # other groups may appear.
 
     Regex_CompressedHex4Dec = /\A
+      (?!:*(?:[0-9A-Fa-f]{1,4}:+){6}[0-9A-Fa-f])
       ((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?) ::
       ((?:[0-9A-Fa-f]{1,4}:)*)
       (\d+)\.(\d+)\.(\d+)\.(\d+)
